@@ -6,7 +6,7 @@ You are working on an **Unsplash MCP Server** - a Model Context Protocol server 
 
 **Tech Stack:**
 - TypeScript with ES modules
-- Node.js (18.x, 20.x, 22.x)
+- Node.js LTS (currently 20.x)
 - MCP SDK (@modelcontextprotocol/sdk)
 - Zod for validation
 - Node's built-in test runner
@@ -155,7 +155,7 @@ server.addTool({
 
 **CI Pipeline** (`.github/workflows/ci.yml`)
 - Triggers: Push to main, all PRs
-- Matrix: Node 18.x, 20.x, 22.x
+- Node Version: Latest LTS (automatic)
 - Steps: Install → Test → Build → TypeScript check
 
 **Dependabot Auto-Merge** (`.github/workflows/dependabot-auto-merge.yml`)
