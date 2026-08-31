@@ -20,7 +20,12 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
+      # Only patch and minor updates are merged automatically. Major updates -
+      # and any PR whose update type could not be determined - stay open for
+      # manual review. For grouped PRs, fetch-metadata reports the highest
+      # semver change in the group, so a group containing a major is skipped too.
       - name: Wait for CI to complete
+        if: steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch'
         uses: lewagon/wait-on-check-action@v1.3.4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -30,7 +35,16 @@ jobs:
           allowed-conclusions: success
 
       - name: Merge Dependabot PRs
+        if: steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: gh pr merge --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip major or unknown updates
+        if: steps.metadata.outputs.update-type != 'version-update:semver-minor' && steps.metadata.outputs.update-type != 'version-update:semver-patch'
+        run: |
+          echo "Update type: ${UPDATE_TYPE:-<undetermined>}"
+          echo "Not auto-merged - this PR needs manual review."
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
