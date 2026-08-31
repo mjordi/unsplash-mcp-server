@@ -159,7 +159,8 @@ server.addTool({
 - Steps: Install → Test → Build → TypeScript check
 
 **Dependabot Auto-Merge** (`.github/workflows/dependabot-auto-merge.yml`)
-- Auto-merges Dependabot PRs when all tests pass
+- Auto-merges patch and minor Dependabot PRs when all tests pass
+- Major updates are never auto-merged and stay open for manual review
 - Uses squash merge strategy
 - Waits for CI completion before merging
 
