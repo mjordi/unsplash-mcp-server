@@ -34,9 +34,25 @@ jobs:
           wait-interval: 10
           allowed-conclusions: success
 
+      # Retries because this job has no concurrency group: when Dependabot
+      # opens several PRs at once, their merge steps run fully in parallel,
+      # and gh pr merge fails outright ("Base branch was modified. Review
+      # and try the merge again.") if another PR from the same batch merges
+      # in between GitHub computing this PR's mergeability and the merge
+      # call landing. A plain retry resolves it, since the PR itself has no
+      # real conflict -- only main's tip moved.
       - name: Merge Dependabot PRs
         if: steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch'
-        run: gh pr merge --squash "$PR_URL"
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if gh pr merge --squash "$PR_URL"; then
+              exit 0
+            fi
+            echo "Merge attempt $attempt failed (likely a concurrent same-batch merge moved main); retrying..."
+            sleep $((attempt * 5))
+          done
+          echo "::error::Failed to merge $PR_URL after 5 attempts"
+          exit 1
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
