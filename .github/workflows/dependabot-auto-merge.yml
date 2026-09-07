@@ -39,12 +39,28 @@ jobs:
       # and gh pr merge fails outright ("Base branch was modified. Review
       # and try the merge again.") if another PR from the same batch merges
       # in between GitHub computing this PR's mergeability and the merge
-      # call landing. A plain retry resolves it, since the PR itself has no
-      # real conflict -- only main's tip moved.
+      # call landing.
+      #
+      # A bare retry is not safe here: `gh pr merge --squash` will happily
+      # succeed against the new base as long as there's no file-level
+      # conflict, even though this PR's CI never ran against whatever the
+      # other PR just merged. Two individually-green dependency bumps could
+      # then combine into an untested tree and break main if the upgrades
+      # interact (caught by a Codex review on this exact fix, PR #49). So
+      # re-verify before every attempt, not just the first, that this PR's
+      # head is still "ahead" or "identical" relative to the current base
+      # tip -- i.e. base hasn't gained commits this PR's own CI run never
+      # saw. If it has, stop and leave the PR for Dependabot's own rebase
+      # rather than merging something never actually tested.
       - name: Merge Dependabot PRs
         if: steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: |
           for attempt in 1 2 3 4 5; do
+            STATUS=$(gh api "repos/${{ github.repository }}/compare/main...$HEAD_SHA" --jq .status)
+            if [ "$STATUS" != "ahead" ] && [ "$STATUS" != "identical" ]; then
+              echo "main gained commits this PR's CI never ran against (status: $STATUS); leaving for Dependabot to rebase, not merging an untested combination."
+              exit 0
+            fi
             if gh pr merge --squash "$PR_URL"; then
               exit 0
             fi
@@ -55,6 +71,7 @@ jobs:
           exit 1
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Skip major or unknown updates
